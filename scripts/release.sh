@@ -91,6 +91,14 @@ codesign --force --options runtime --timestamp --entitlements "$WORK/tunnel.enti
 codesign --force --options runtime --timestamp --entitlements "$WORK/app.entitlements" --sign "$IDENTITY" "$APP"
 codesign --verify --strict --deep --verbose=1 "$APP"
 
+if [[ -z "${SKIP_NOTARIZE:-}" ]]; then
+  # Staple the app itself so it opens offline even after it's copied out of the dmg.
+  echo "==> notarizing the app (a few minutes)"
+  ditto -c -k --keepParent "$APP" "$WORK/Rodinia.zip"
+  xcrun notarytool submit "$WORK/Rodinia.zip" --keychain-profile "$NOTARY_PROFILE" --wait
+  xcrun stapler staple "$APP"
+fi
+
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")
 DMG="$DIST/Rodinia-$VERSION.dmg"
 
@@ -107,7 +115,7 @@ if [[ -n "${SKIP_NOTARIZE:-}" ]]; then
   exit 0
 fi
 
-echo "==> notarizing (a few minutes)"
+echo "==> notarizing the dmg"
 xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
 xcrun stapler staple "$DMG"
 spctl --assess --type open --context context:primary-signature --verbose "$DMG"
