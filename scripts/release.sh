@@ -104,10 +104,50 @@ DMG="$DIST/Rodinia-$VERSION.dmg"
 
 echo "==> dmg"
 STAGE="$WORK/dmg"
-mkdir -p "$STAGE" && cp -R "$APP" "$STAGE/" && ln -s /Applications "$STAGE/Applications"
+mkdir -p "$STAGE/.background"
+cp -R "$APP" "$STAGE/"
+ln -s /Applications "$STAGE/Applications"
+cp "$ROOT/scripts/dmg/background.tiff" "$STAGE/.background/background.tiff"
+
+# A writable image first, so Finder can store the window layout in it.
 # hdiutil underestimates the volume for this bundle; size it from the contents.
+RW="$WORK/rw.dmg"
 SIZE_MB=$(( $(du -sm "$STAGE" | cut -f1) + 40 ))
-hdiutil create -volname "Rodinia" -srcfolder "$STAGE" -size "${SIZE_MB}m" -fs HFS+ -ov -format UDZO "$DMG" -quiet
+hdiutil create -volname "Rodinia" -srcfolder "$STAGE" -size "${SIZE_MB}m" -fs HFS+ -format UDRW -ov "$RW" -quiet
+hdiutil detach "/Volumes/Rodinia" -quiet 2>/dev/null || true
+hdiutil attach "$RW" -readwrite -noverify -noautoopen -mountpoint "/Volumes/Rodinia" -quiet
+
+# Window and icon positions match scripts/dmg/background.tiff (640×400, drawn by
+# the debug -snapshots renderer). The first run asks to let Terminal control Finder.
+osascript <<'APPLESCRIPT'
+tell application "Finder"
+  tell disk "Rodinia"
+    open
+    set current view of container window to icon view
+    set toolbar visible of container window to false
+    set statusbar visible of container window to false
+    set the bounds of container window to {200, 120, 840, 548}
+    set opts to the icon view options of container window
+    set arrangement of opts to not arranged
+    set icon size of opts to 112
+    set text size of opts to 13
+    set background picture of opts to file ".background:background.tiff"
+    set position of item "Rodinia.app" of container window to {170, 205}
+    set position of item "Applications" of container window to {470, 205}
+    close
+    open
+    update without registering applications
+    delay 2
+    close
+  end tell
+end tell
+APPLESCRIPT
+
+rm -rf "/Volumes/Rodinia/.fseventsd"
+chmod -Rf go-w "/Volumes/Rodinia" 2>/dev/null || true
+sync
+hdiutil detach "/Volumes/Rodinia" -quiet
+hdiutil convert "$RW" -format UDZO -imagekey zlib-level=9 -ov -o "$DMG" -quiet
 codesign --timestamp --sign "$IDENTITY" "$DMG"
 
 if [[ -n "${SKIP_NOTARIZE:-}" ]]; then

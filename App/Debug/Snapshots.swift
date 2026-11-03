@@ -17,6 +17,7 @@ enum Snapshots {
         RenderMode.snapshot = true
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         renderIcon(to: directory.appendingPathComponent("icon-1024.png"))
+        renderDiskImageBackground(to: directory)
         let since = Date.now.addingTimeInterval(-(12 * 60 + 43))
         let states: [(String, VPNController.Phase?)] = [
             ("onboarding", nil),
@@ -70,6 +71,68 @@ extension Snapshots {
            let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
             try? png.write(to: url)
         }
+    }
+}
+
+extension Snapshots {
+    /// Background of the disk image window (640×400 points): tells people to drag
+    /// the app into Applications. Finder places the icons at x 170 and 470, y 205.
+    static func renderDiskImageBackground(to directory: URL) {
+        let canvas = ZStack(alignment: .top) {
+            LinearGradient(colors: [Color(nsColor: NSColor(hex: 0xF4F6F7)), Color(nsColor: NSColor(hex: 0xE4E9EC))],
+                           startPoint: .top, endPoint: .bottom)
+            VStack(spacing: 6) {
+                Text("Drag Rodinia into Applications")
+                    .font(.system(size: 22, weight: .medium, design: .serif))
+                    .foregroundStyle(Color(nsColor: NSColor(hex: 0x1E2A30)))
+                Text("Then open it from your Applications folder.")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Color(nsColor: NSColor(hex: 0x5B6B73)))
+            }
+            .padding(.top, 42)
+            DragArrow()
+                .stroke(Color(nsColor: NSColor(hex: 0x3D5A80)).opacity(0.75),
+                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round, dash: [0.1, 7]))
+                .frame(width: 640, height: 400)
+            DragArrowHead()
+                .stroke(Color(nsColor: NSColor(hex: 0x3D5A80)).opacity(0.75),
+                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                .frame(width: 640, height: 400)
+        }
+        .frame(width: 640, height: 400)
+        .environment(\.colorScheme, .light)
+
+        for scale in [1.0, 2.0] {
+            let renderer = ImageRenderer(content: canvas)
+            renderer.scale = scale
+            guard let tiff = renderer.nsImage?.tiffRepresentation,
+                  let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { continue }
+            try? png.write(to: directory.appendingPathComponent(scale == 1 ? "dmg-background.png" : "dmg-background@2x.png"))
+        }
+    }
+}
+
+/// A gentle dotted arc from the app icon towards Applications.
+private struct DragArrow: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 252, y: 200))
+        path.addQuadCurve(to: CGPoint(x: 384, y: 200), control: CGPoint(x: 318, y: 168))
+        return path
+    }
+}
+
+private struct DragArrowHead: Shape {
+    func path(in rect: CGRect) -> Path {
+        // Aligned with the arc's direction where it ends (control point → end point).
+        let tip = CGPoint(x: 384, y: 200), control = CGPoint(x: 318, y: 168)
+        let angle = atan2(tip.y - control.y, tip.x - control.x)
+        let length: CGFloat = 12, spread: CGFloat = .pi / 5
+        var path = Path()
+        path.move(to: CGPoint(x: tip.x - length * cos(angle - spread), y: tip.y - length * sin(angle - spread)))
+        path.addLine(to: tip)
+        path.addLine(to: CGPoint(x: tip.x - length * cos(angle + spread), y: tip.y - length * sin(angle + spread)))
+        return path
     }
 }
 
