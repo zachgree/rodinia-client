@@ -61,6 +61,7 @@ profile_for() {
 APP_PROFILE=$(profile_for "$APP_ID")
 TUNNEL_PROFILE=$(profile_for "$TUNNEL_ID")
 
+hdiutil detach "$WORK/mnt" -force -quiet 2>/dev/null || true
 rm -rf "$DIST" && mkdir -p "$WORK"
 
 echo "==> building $APP_ID (Release, unsigned)"
@@ -112,41 +113,50 @@ cp "$ROOT/scripts/dmg/background.tiff" "$STAGE/.background/background.tiff"
 # A writable image first, so Finder can store the window layout in it.
 # hdiutil underestimates the volume for this bundle; size it from the contents.
 RW="$WORK/rw.dmg"
+MNT="$WORK/mnt"
 SIZE_MB=$(( $(du -sm "$STAGE" | cut -f1) + 40 ))
-hdiutil create -volname "Rodinia" -srcfolder "$STAGE" -size "${SIZE_MB}m" -fs HFS+ -format UDRW -ov "$RW" -quiet
-hdiutil detach "/Volumes/Rodinia" -quiet 2>/dev/null || true
-hdiutil attach "$RW" -readwrite -noverify -noautoopen -mountpoint "/Volumes/Rodinia" -quiet
+# Finder addresses the volume by name, so no other "Rodinia" volume may be mounted.
+for v in /Volumes/Rodinia*; do [[ -d "$v" ]] && hdiutil detach "$v" -force -quiet || true; done
+# Mounted at a private path rather than /Volumes/Rodinia: once macOS has seen a
+# system extension run from /Volumes/Rodinia it refuses writes there.
+hdiutil create -volname "Rodinia" -size "${SIZE_MB}m" -fs HFS+ -type UDIF -layout NONE -ov "$RW" -quiet
+mkdir -p "$MNT"
+hdiutil attach "$RW" -readwrite -noverify -noautoopen -mountpoint "$MNT" -quiet
+ditto "$STAGE" "$MNT"
 
 # Window and icon positions match scripts/dmg/background.tiff (640×400, drawn by
 # the debug -snapshots renderer). The first run asks to let Terminal control Finder.
-osascript <<'APPLESCRIPT'
-tell application "Finder"
-  tell disk "Rodinia"
-    open
-    set current view of container window to icon view
-    set toolbar visible of container window to false
-    set statusbar visible of container window to false
-    set the bounds of container window to {200, 120, 840, 548}
-    set opts to the icon view options of container window
+osascript - "$MNT" <<'APPLESCRIPT'
+on run argv
+  set root to POSIX file (item 1 of argv) as alias
+  set bg to POSIX file ((item 1 of argv) & "/.background/background.tiff") as alias
+  tell application "Finder"
+    set win to container window of folder root
+    open folder root
+    set current view of win to icon view
+    set toolbar visible of win to false
+    set statusbar visible of win to false
+    set the bounds of win to {200, 120, 840, 548}
+    set opts to the icon view options of win
     set arrangement of opts to not arranged
     set icon size of opts to 112
     set text size of opts to 13
-    set background picture of opts to file ".background:background.tiff"
-    set position of item "Rodinia.app" of container window to {170, 205}
-    set position of item "Applications" of container window to {470, 205}
-    close
-    open
-    update without registering applications
+    set background picture of opts to bg
+    set position of item "Rodinia.app" of folder root to {170, 205}
+    set position of item "Applications" of folder root to {470, 205}
+    close win
+    open folder root
+    update folder root without registering applications
     delay 2
-    close
+    close container window of folder root
   end tell
-end tell
+end run
 APPLESCRIPT
 
-rm -rf "/Volumes/Rodinia/.fseventsd"
-chmod -Rf go-w "/Volumes/Rodinia" 2>/dev/null || true
+rm -rf "$MNT/.fseventsd"
+chmod -Rf go-w "$MNT" 2>/dev/null || true
 sync
-hdiutil detach "/Volumes/Rodinia" -quiet
+hdiutil detach "$MNT" -quiet
 hdiutil convert "$RW" -format UDZO -imagekey zlib-level=9 -ov -o "$DMG" -quiet
 codesign --timestamp --sign "$IDENTITY" "$DMG"
 

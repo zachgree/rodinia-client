@@ -25,10 +25,12 @@ enum Snapshots {
             ("connecting", .connecting),
             ("connected", .connected(since: since)),
             ("failed", .failed("The server didn't answer. Check your internet connection and try again.")),
+            ("approval", .disconnected),
         ]
         for scheme in [ColorScheme.light, .dark] {
             for (name, phase) in states {
                 let model = AppModel.preview(phase: phase)
+                if name == "approval" { model.installer.debugSet(.needsApproval) }
                 let view = ZStack {
                     Color(nsColor: scheme == .dark ? NSColor(hex: 0x1C2328) : NSColor(hex: 0xF3F5F6))
                     if phase == nil { OnboardingView() } else { MainView() }

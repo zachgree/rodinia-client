@@ -10,7 +10,7 @@ struct MenuBarContent: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 PlatesView(
-                    assembly: model.vpn.phase.isActive ? (model.vpn.phase == .connecting ? 0.62 : 1) : 0,
+                    assembly: model.displayPhase.isActive ? (model.displayPhase == .connecting ? 0.62 : 1) : 0,
                     verdancy: model.vpn.phase == .connecting ? 0 : (model.vpn.phase.isActive ? 1 : 0),
                     seam: model.vpn.phase == .connecting ? 1 : 0,
                     alarm: 0,

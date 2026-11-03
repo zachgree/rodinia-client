@@ -24,6 +24,9 @@ final class AppModel {
     private(set) var showsOnboarding: Bool
     private var started = false
 
+    /// The user asked to connect before the extension was approved; connect once it is.
+    private(set) var connectWhenReady = false
+
     private let client = SubscriptionClient()
     private var sampler: Task<Void, Never>?
 
@@ -34,6 +37,11 @@ final class AppModel {
         self.inMemory = inMemory
         let saved = inMemory ? nil : UserDefaults.standard.data(forKey: Keys.profile).flatMap { try? JSONDecoder().decode(Profile.self, from: $0) }
         showsOnboarding = saved == nil
+        installer.onReady = { [weak self] in
+            guard let self, self.connectWhenReady else { return }
+            self.connectWhenReady = false
+            Task { await self.toggle() }
+        }
         profile = saved
         selectedServerID = inMemory ? nil : UserDefaults.standard.string(forKey: Keys.selected)
     }
@@ -96,9 +104,29 @@ final class AppModel {
 
     // MARK: connection
 
+    /// What the plates and headline show. While the extension is being activated for a
+    /// connect, that already counts as connecting.
+    var displayPhase: VPNController.Phase {
+        if connectWhenReady, installer.state == .activating || installer.state == .unknown { return .connecting }
+        return vpn.phase
+    }
+
+    /// The approval panel is up while macOS waits for the user to allow the extension.
+    var showsApproval: Bool { installer.state == .needsApproval }
+
+    func cancelApproval() {
+        connectWhenReady = false
+    }
+
     func toggle() async {
-        if vpn.phase.isActive {
+        if vpn.phase.isActive || connectWhenReady {
+            connectWhenReady = false
             vpn.disconnect()
+        } else if installer.state != .ready {
+            // First connect on this Mac: the extension needs macOS's OK before anything else.
+            vpn.clearError()
+            connectWhenReady = true
+            installer.activate()
         } else if let server = selectedServer {
             vpn.clearError()
             await vpn.connect(to: server)

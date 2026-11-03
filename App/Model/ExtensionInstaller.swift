@@ -18,6 +18,8 @@ final class ExtensionInstaller: NSObject {
 
     private(set) var state: State = .unknown
     let identifier: String
+    /// Called each time activation completes, including after the user approves in System Settings.
+    var onReady: (() -> Void)?
 
     init(identifier: String = Bundle.main.object(forInfoDictionaryKey: "RodiniaTunnelBundleID") as? String ?? "") {
         self.identifier = identifier
@@ -26,12 +28,16 @@ final class ExtensionInstaller: NSObject {
     /// Safe to call on every launch: an already-active extension of the same
     /// version comes back as `.ready` without bothering the user.
     func activate() {
-        guard state != .activating, state != .ready else { return }
+        guard state != .activating, state != .ready, state != .needsApproval else { return }
         state = .activating
         let request = OSSystemExtensionRequest.activationRequest(forExtensionWithIdentifier: identifier, queue: .main)
         request.delegate = self
         OSSystemExtensionManager.shared.submitRequest(request)
     }
+
+    #if DEBUG
+    func debugSet(_ state: State) { self.state = state }
+    #endif
 
     static func openApprovalSettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")!
@@ -53,7 +59,10 @@ extension ExtensionInstaller: OSSystemExtensionRequestDelegate {
     }
 
     nonisolated func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
-        MainActor.assumeIsolated { state = .ready }
+        MainActor.assumeIsolated {
+            state = .ready
+            onReady?()
+        }
     }
 
     nonisolated func request(_ request: OSSystemExtensionRequest, didFailWithError error: any Error) {

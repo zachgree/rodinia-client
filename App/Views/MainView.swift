@@ -8,7 +8,7 @@ struct MainView: View {
     var body: some View {
         VStack(spacing: 0) {
             TopBar()
-            ConnectHero(phase: model.vpn.phase) {
+            ConnectHero(phase: model.displayPhase) {
                 Task { await model.toggle() }
             }
             .padding(.top, 2)
@@ -25,6 +25,13 @@ struct MainView: View {
             }
         }
         .padding(.bottom, 20)
+        .overlay {
+            if model.showsApproval {
+                ApprovalPanel()
+                    .transition(.opacity)
+            }
+        }
+        .animation(.smooth(duration: 0.35), value: model.showsApproval)
     }
 }
 
@@ -104,7 +111,7 @@ private struct StatusBlock: View {
     }
 
     private var headline: String {
-        switch model.vpn.phase {
+        switch model.displayPhase {
         case .disconnected: "Not connected"
         case .connecting: "Connecting"
         case .connected: "Connected"
@@ -115,7 +122,7 @@ private struct StatusBlock: View {
 
     @ViewBuilder private var detail: some View {
         let server = model.selectedServer
-        switch model.vpn.phase {
+        switch model.displayPhase {
         case .connected(let since):
             VStack(spacing: 4) {
                 TimelineView(.periodic(from: since, by: 1)) { context in
@@ -142,12 +149,6 @@ private struct StatusBlock: View {
 
     @ViewBuilder private var setupNotice: some View {
         switch model.installer.state {
-        case .needsApproval:
-            Notice(
-                text: "Allow Rodinia in System Settings to finish setting up.",
-                button: "Open System Settings",
-                action: ExtensionInstaller.openApprovalSettings
-            )
         case .failed(let message):
             Notice(text: message, button: "Try again") { model.installer.activate() }
         default:
