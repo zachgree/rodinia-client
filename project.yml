@@ -10,6 +10,9 @@ configFiles:
 packages:
   RodiniaKit:
     path: Packages/RodiniaKit
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    majorVersion: 2.6.0
 targets:
   Rodinia:
     type: application
@@ -17,6 +20,7 @@ targets:
     sources: [App]
     dependencies:
       - package: RodiniaKit
+      - package: Sparkle
       - target: RodiniaTunnel
     settings:
       base:

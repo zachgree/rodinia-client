@@ -16,5 +16,11 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!-- Sparkle's installer, which replaces the app from outside the sandbox. -->
+	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+	<array>
+		<string>$(APP_BUNDLE_ID)-spks</string>
+		<string>$(APP_BUNDLE_ID)-spki</string>
+	</array>
 </dict>
 </plist>

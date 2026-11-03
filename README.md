@@ -18,6 +18,8 @@ A native macOS VPN client for VLESS + Reality, built with SwiftUI and Xray-core.
    - Allow Rodinia in **System Settings → General → Login Items & Extensions → Network Extensions**.
    - Choose **Allow** when it asks to add a VPN configuration.
 
+Rodinia updates itself: it downloads new versions in the background and installs them the next time you quit it. To check now, choose **Rodinia → Check for Updates…** or use the **⋯** menu.
+
 Rodinia was the supercontinent that joined every landmass about a billion years ago. The app takes its look from that: while you're disconnected, the map sits in pieces. Click it and the plates drift together. Once the tunnel is up, they fuse into one continent.
 
 <p align="center">
@@ -33,6 +35,7 @@ Rodinia was the supercontinent that joined every landmass about a billion years 
 - Sends all traffic through the tunnel, DNS and UDP included. Local network traffic stays local
 - Menu bar control, ⌘K to connect, ⌘1–9 to switch location
 - Light and dark mode both designed, and every animation respects Reduce Motion
+- Updates itself with [Sparkle](https://sparkle-project.org), checking signed releases from this repository
 
 ## How it works
 
@@ -71,13 +74,21 @@ Rodinia.app/Contents/MacOS/Rodinia -snapshots /tmp/rodinia-snaps
 
 ## Releasing
 
-`scripts/release.sh` builds a universal app, signs it with Developer ID, and notarizes and staples both the app and the `.dmg`. It needs a one-time `xcrun notarytool store-credentials rodinia-notary`. Then publish it:
+Bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `Config/Base.xcconfig`, then:
 
 ```sh
-gh release create v0.2.0 dist/Rodinia.dmg --title "Rodinia 0.2.0"
+scripts/release.sh   # universal build, Developer ID signing, notarized and stapled app and dmg, signed appcast
+scripts/publish.sh   # GitHub release v<version> with Rodinia.dmg and appcast.xml, marked latest
 ```
 
-Every release keeps the file name `Rodinia.dmg`, so the download button always gets the latest version.
+Optional release notes go in `scripts/notes/<version>.md` for GitHub and `scripts/notes/<version>.html` for the update window.
+
+Every release keeps the file names `Rodinia.dmg` and `appcast.xml`, so the download button and the in-app updater (`releases/latest/download/appcast.xml`) always find the newest build. `CURRENT_PROJECT_VERSION` must go up each time: Sparkle compares it, and macOS only replaces the installed tunnel extension when it changes.
+
+One-time setup:
+
+- `xcrun notarytool store-credentials rodinia-notary`
+- An update signing key. Sparkle's `generate_keys --account rodinia` (in `.build/release/SourcePackages/artifacts/sparkle/Sparkle/bin/`) stores it in your keychain and prints the public key for `UPDATE_PUBLIC_KEY`. Back it up with `generate_keys --account rodinia -x key.txt`: without it, installed copies can never be updated again.
 
 ## License
 

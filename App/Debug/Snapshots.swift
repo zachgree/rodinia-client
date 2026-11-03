@@ -37,6 +37,7 @@ enum Snapshots {
                 }
                 .frame(width: 380, height: 620)
                 .environment(model)
+                .environment(Updater(starting: false))
                 .environment(\.colorScheme, scheme)
 
                 let renderer = ImageRenderer(content: view)

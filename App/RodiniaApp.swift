@@ -4,6 +4,7 @@ import SwiftUI
 @main
 struct RodiniaApp: App {
     @State private var model = AppModel()
+    @State private var updater: Updater
 
     init() {
         #if DEBUG
@@ -12,12 +13,14 @@ struct RodiniaApp: App {
             exit(0)
         }
         #endif
+        _updater = State(initialValue: Updater())
     }
 
     var body: some Scene {
         Window("Rodinia", id: "main") {
             RootView()
                 .environment(model)
+                .environment(updater)
                 .task { await model.start() }
                 .onOpenURL { url in
                     Task {
@@ -31,6 +34,9 @@ struct RodiniaApp: App {
         .defaultSize(width: 380, height: 620)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesButton().environment(updater)
+            }
             CommandMenu("Connection") {
                 Button(model.vpn.phase.isActive ? "Disconnect" : "Connect") {
                     Task { await model.toggle() }
@@ -43,6 +49,7 @@ struct RodiniaApp: App {
         MenuBarExtra {
             MenuBarContent()
                 .environment(model)
+                .environment(updater)
                 .task { await model.start() }
         } label: {
             Image(systemName: model.vpn.phase.isActive ? "globe.europe.africa.fill" : "globe.europe.africa")

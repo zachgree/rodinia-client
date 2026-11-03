@@ -58,6 +58,31 @@ profile_for() {
   [[ -n "$best" ]] || { echo "!! no Developer ID provisioning profile for $bundle (see the header of this script)" >&2; exit 1; }
   echo "$best"
 }
+# Submits and waits. notarytool sometimes dies with a bus error, during the
+# upload or mid-wait after Apple already has the file, so retry the upload and
+# poll the submission rather than trusting --wait.
+notarize() {
+  local id="" status attempt
+  for attempt in 1 2 3; do
+    id=$(xcrun notarytool submit "$1" --keychain-profile "$NOTARY_PROFILE" --output-format json 2>/dev/null \
+      | /usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])' 2>/dev/null) && break
+    echo "    upload failed (attempt $attempt), retrying"
+  done
+  [[ -n "$id" ]] || { echo "!! could not submit $1 for notarization" >&2; exit 1; }
+  echo "    submission $id"
+  while :; do
+    status=$(xcrun notarytool info "$id" --keychain-profile "$NOTARY_PROFILE" --output-format json 2>/dev/null \
+      | /usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)["status"])' || echo "In Progress")
+    [[ "$status" != "In Progress" ]] && break
+    sleep 20
+  done
+  if [[ "$status" != "Accepted" ]]; then
+    echo "!! notarization $status" >&2
+    xcrun notarytool log "$id" --keychain-profile "$NOTARY_PROFILE" >&2 || true
+    exit 1
+  fi
+}
+
 APP_PROFILE=$(profile_for "$APP_ID")
 TUNNEL_PROFILE=$(profile_for "$TUNNEL_ID")
 
@@ -79,7 +104,8 @@ entitlements() {
   local source="$1" bundle="$2" out="$3"
   # NEMachServiceName in the tunnel's Info.plist must start with this App Group.
   sed -e 's/\$(NE_TUNNEL_PROVIDER)/packet-tunnel-provider-systemextension/' \
-      -e "s/\$(DEVELOPMENT_TEAM).\$(APP_BUNDLE_ID)/$TEAM.$APP_ID/" "$source" > "$out"
+      -e "s/\$(DEVELOPMENT_TEAM).\$(APP_BUNDLE_ID)/$TEAM.$APP_ID/" \
+      -e "s/\$(APP_BUNDLE_ID)/$APP_ID/g" "$source" > "$out"
   /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string $TEAM.$bundle" "$out"
   /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string $TEAM" "$out"
 }
@@ -93,7 +119,15 @@ MACH=$(/usr/libexec/PlistBuddy -c 'Print :NetworkExtension:NEMachServiceName' "$
 echo "==> signing with $IDENTITY"
 cp "$TUNNEL_PROFILE" "$EXT/Contents/embedded.provisionprofile"
 cp "$APP_PROFILE" "$APP/Contents/embedded.provisionprofile"
-# Inside out: the extension first, then the app that contains it.
+# Inside out: Sparkle's helpers and the extension first, then the app that contains them.
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
+[[ -d "$SPARKLE" ]] || { echo "!! Sparkle.framework missing from the app bundle" >&2; exit 1; }
+sign() { codesign --force --options runtime --timestamp --sign "$IDENTITY" "$@"; }
+sign "$SPARKLE/XPCServices/Installer.xpc"
+sign --preserve-metadata=entitlements "$SPARKLE/XPCServices/Downloader.xpc"
+sign "$SPARKLE/Autoupdate"
+sign "$SPARKLE/Updater.app"
+sign "$APP/Contents/Frameworks/Sparkle.framework"
 codesign --force --options runtime --timestamp --entitlements "$WORK/tunnel.entitlements" --sign "$IDENTITY" "$EXT"
 codesign --force --options runtime --timestamp --entitlements "$WORK/app.entitlements" --sign "$IDENTITY" "$APP"
 codesign --verify --strict --deep --verbose=1 "$APP"
@@ -102,7 +136,7 @@ if [[ -z "${SKIP_NOTARIZE:-}" ]]; then
   # Staple the app itself so it opens offline even after it's copied out of the dmg.
   echo "==> notarizing the app (a few minutes)"
   ditto -c -k --keepParent "$APP" "$WORK/Rodinia.zip"
-  xcrun notarytool submit "$WORK/Rodinia.zip" --keychain-profile "$NOTARY_PROFILE" --wait
+  notarize "$WORK/Rodinia.zip"
   xcrun stapler staple "$APP"
 fi
 
@@ -172,9 +206,42 @@ if [[ -n "${SKIP_NOTARIZE:-}" ]]; then
 fi
 
 echo "==> notarizing the dmg"
-xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+notarize "$DMG"
 xcrun stapler staple "$DMG"
 spctl --assess --type open --context context:primary-signature --verbose "$DMG"
 # A fixed name, so README's releases/latest/download/Rodinia.dmg link always works.
 cp "$DMG" "$DIST/Rodinia.dmg"
-echo "==> $DIST/Rodinia.dmg (upload this one)"
+
+# The Sparkle feed, uploaded beside the dmg. It only needs the newest build: the
+# app reads it from releases/latest, so each release replaces it. Signed last,
+# over the stapled dmg, with the EdDSA key generate_keys put in the keychain.
+echo "==> appcast"
+BUILD=$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP/Contents/Info.plist")
+MIN_OS=$(/usr/libexec/PlistBuddy -c 'Print LSMinimumSystemVersion' "$APP/Contents/Info.plist")
+FEED=$(/usr/libexec/PlistBuddy -c 'Print SUFeedURL' "$APP/Contents/Info.plist")
+SIGN_UPDATE="$ROOT/.build/release/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update"
+ENCLOSURE=$("$SIGN_UPDATE" --account "${SPARKLE_ACCOUNT:-rodinia}" "$DIST/Rodinia.dmg")
+# .../releases/latest/download/appcast.xml -> .../releases/download/v<version>/Rodinia.dmg
+URL="${FEED%/latest/download/appcast.xml}/download/v$VERSION/Rodinia.dmg"
+NOTES_FILE="$ROOT/scripts/notes/$VERSION.html"
+NOTES=""
+[[ -f "$NOTES_FILE" ]] && NOTES="<description><![CDATA[$(cat "$NOTES_FILE")]]></description>"
+cat > "$DIST/appcast.xml" <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Rodinia</title>
+    <item>
+      <title>Rodinia $VERSION</title>
+      <pubDate>$(LC_ALL=C date -u "+%a, %d %b %Y %H:%M:%S +0000")</pubDate>
+      <sparkle:version>$BUILD</sparkle:version>
+      <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>$MIN_OS</sparkle:minimumSystemVersion>
+      $NOTES
+      <enclosure url="$URL" $ENCLOSURE type="application/octet-stream"/>
+    </item>
+  </channel>
+</rss>
+XML
+echo "==> $DIST/Rodinia.dmg and $DIST/appcast.xml"
+echo "    publish with: scripts/publish.sh"

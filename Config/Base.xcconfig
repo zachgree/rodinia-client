@@ -7,7 +7,7 @@ DEVELOPMENT_TEAM =
 MACOSX_DEPLOYMENT_TARGET = 15.0
 SWIFT_VERSION = 6.0
 MARKETING_VERSION = 0.1.1
-CURRENT_PROJECT_VERSION = 2
+CURRENT_PROJECT_VERSION = 3
 
 CODE_SIGN_STYLE = Automatic
 ENABLE_HARDENED_RUNTIME = YES
@@ -19,5 +19,12 @@ NE_TUNNEL_PROVIDER = packet-tunnel-provider
 
 APP_BUNDLE_ID = $(BUNDLE_PREFIX).client
 TUNNEL_BUNDLE_ID = $(APP_BUNDLE_ID).tunnel
+
+// Sparkle updates. The feed is an asset of the latest GitHub release, written by
+// scripts/release.sh and signed with the EdDSA key whose public half is below.
+// A fork that ships its own builds sets both in Local.xcconfig.
+// ("$()" keeps xcconfig from reading the "//" as a comment.)
+UPDATE_FEED_URL = https:/$()/github.com/zachgree/rodinia-client/releases/latest/download/appcast.xml
+UPDATE_PUBLIC_KEY = AUXPNpzKLtiz1fO76ek8aOlJtzy64reHc7XUH56Tt90=
 
 #include? "Local.xcconfig"

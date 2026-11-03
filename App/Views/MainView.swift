@@ -61,6 +61,8 @@ private struct TopBar: View {
                     }
                 }
                 Divider()
+                CheckForUpdatesButton()
+                Divider()
                 Button("Remove subscription…", role: .destructive) { confirmingRemoval = true }
             } label: {
                 Image(systemName: model.isRefreshing ? "arrow.triangle.2.circlepath" : "ellipsis")
