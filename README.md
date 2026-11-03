@@ -4,6 +4,20 @@
 
 A native macOS VPN client for VLESS + Reality, built with SwiftUI and Xray-core.
 
+<p align="center">
+  <a href="https://github.com/zachgree/rodinia-client/releases/latest/download/Rodinia.dmg"><img src="https://img.shields.io/badge/Download_for_Mac-Rodinia.dmg-3D5A80?style=for-the-badge&logo=apple&logoColor=white" alt="Download Rodinia for Mac"></a>
+</p>
+<p align="center"><sub>macOS 15 or later · Apple Silicon and Intel · signed and notarized by Apple</sub></p>
+
+### Install
+
+1. Download **Rodinia.dmg** and open it.
+2. Drag **Rodinia** into **Applications**, then open it from there.
+3. Paste your subscription link.
+4. The first time you connect, macOS asks for two permissions:
+   - Allow Rodinia in **System Settings → General → Login Items & Extensions → Network Extensions**.
+   - Choose **Allow** when it asks to add a VPN configuration.
+
 Rodinia was the supercontinent that joined every landmass about a billion years ago. The app takes its look from that: while you're disconnected, the map sits in pieces. Click it and the plates drift together. Once the tunnel is up, they fuse into one continent.
 
 <p align="center">
@@ -57,7 +71,13 @@ Rodinia.app/Contents/MacOS/Rodinia -snapshots /tmp/rodinia-snaps
 
 ## Releasing
 
-`scripts/release.sh` archives the app, exports it with Developer ID, notarizes it and builds a `.dmg`. It needs a one-time `xcrun notarytool store-credentials rodinia-notary`.
+`scripts/release.sh` builds a universal app, signs it with Developer ID, and notarizes and staples both the app and the `.dmg`. It needs a one-time `xcrun notarytool store-credentials rodinia-notary`. Then publish it:
+
+```sh
+gh release create v0.2.0 dist/Rodinia.dmg --title "Rodinia 0.2.0"
+```
+
+Every release keeps the file name `Rodinia.dmg`, so the download button always gets the latest version.
 
 ## License
 

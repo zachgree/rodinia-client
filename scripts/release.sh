@@ -119,4 +119,6 @@ echo "==> notarizing the dmg"
 xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
 xcrun stapler staple "$DMG"
 spctl --assess --type open --context context:primary-signature --verbose "$DMG"
-echo "==> $DMG"
+# A fixed name, so README's releases/latest/download/Rodinia.dmg link always works.
+cp "$DMG" "$DIST/Rodinia.dmg"
+echo "==> $DIST/Rodinia.dmg (upload this one)"
