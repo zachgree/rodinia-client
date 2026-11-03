@@ -110,6 +110,20 @@ let us = "vless://3f1c2a9e-0b7d-4e55-9a10-6c2f8d1e4b77@[2001:db8::7]:80?type=tcp
         #expect(user["flow"] == nil, "an empty flow must be omitted, not sent as \"\"")
     }
 
+    @Test func answersDNSInsideTheTunnelIPv4Only() throws {
+        let json = try XrayConfig.make(for: Server(link: uk))
+        let root = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+
+        let dns = try #require(root["dns"] as? [String: Any])
+        #expect(dns["queryStrategy"] as? String == "UseIPv4")
+
+        let rules = try #require((root["routing"] as? [String: Any])?["rules"] as? [[String: Any]])
+        let hijack = try #require(rules.firstIndex { $0["outboundTag"] as? String == "dns-out" })
+        let lan = try #require(rules.firstIndex { $0["outboundTag"] as? String == "direct" })
+        #expect(hijack < lan, "172.19.0.2 is private; DNS must be caught before the LAN rule")
+        #expect(Tunnel.dnsServers.allSatisfy { !Tunnel.upstreamDNS.contains($0) })
+    }
+
     @Test func usesResolvedAddress() throws {
         let server = Server(name: "x", address: "vpn.example.com", port: 443, uuid: "u", publicKey: "k")
         let json = try XrayConfig.make(for: server, resolvedAddress: "203.0.113.9")
