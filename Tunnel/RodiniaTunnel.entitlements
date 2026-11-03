@@ -4,7 +4,7 @@
 <dict>
 	<key>com.apple.developer.networking.networkextension</key>
 	<array>
-		<string>packet-tunnel-provider-systemextension</string>
+		<string>$(NE_TUNNEL_PROVIDER)</string>
 	</array>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>

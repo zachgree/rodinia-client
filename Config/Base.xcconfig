@@ -13,6 +13,10 @@ CODE_SIGN_STYLE = Automatic
 ENABLE_HARDENED_RUNTIME = YES
 DEAD_CODE_STRIPPING = YES
 
+// Xcode signs for development. Development profiles only allow this plain value;
+// scripts/release.sh re-signs with Developer ID and the -systemextension value.
+NE_TUNNEL_PROVIDER = packet-tunnel-provider
+
 APP_BUNDLE_ID = $(BUNDLE_PREFIX).client
 TUNNEL_BUNDLE_ID = $(APP_BUNDLE_ID).tunnel
 
