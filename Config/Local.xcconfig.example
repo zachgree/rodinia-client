@@ -1,0 +1,5 @@
+// Copy to Local.xcconfig (git-ignored) and fill in.
+// Your Apple Developer team ID, from developer.apple.com/account → Membership.
+DEVELOPMENT_TEAM = ABCDE12345
+// A reverse-DNS prefix you control. Bundle IDs become <prefix>.client and <prefix>.client.tunnel.
+BUNDLE_PREFIX = com.yourname.rodinia

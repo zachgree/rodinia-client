@@ -1,0 +1,17 @@
+# Xcode
+*.xcodeproj/
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+
+# Generated / fetched
+.build/
+Frameworks/
+dist/
+.swiftpm/
+
+# Personal signing values
+Config/Local.xcconfig
+
+.DS_Store

@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Test RodiniaKit
+        run: swift test --package-path Packages/RodiniaKit
+
+      - name: Build Xray core
+        run: scripts/build-core.sh
+
+      - name: Build app (unsigned)
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          xcodebuild -project Rodinia.xcodeproj -scheme Rodinia -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO build

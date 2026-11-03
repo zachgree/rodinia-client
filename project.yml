@@ -1,0 +1,56 @@
+name: Rodinia
+options:
+  bundleIdPrefix: com.example.rodinia
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
+packages:
+  RodiniaKit:
+    path: Packages/RodiniaKit
+targets:
+  Rodinia:
+    type: application
+    platform: macOS
+    sources: [App]
+    dependencies:
+      - package: RodiniaKit
+      - target: RodiniaTunnel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
+        PRODUCT_NAME: Rodinia
+        INFOPLIST_FILE: App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/Rodinia.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        LD_RUNPATH_SEARCH_PATHS: $(inherited) @executable_path/../Frameworks
+  RodiniaTunnel:
+    type: system-extension
+    platform: macOS
+    sources: [Tunnel]
+    dependencies:
+      - package: RodiniaKit
+      - framework: Frameworks/RodiniaCore.xcframework
+        embed: false
+        optional: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(TUNNEL_BUNDLE_ID)
+        PRODUCT_NAME: $(TUNNEL_BUNDLE_ID)
+        INFOPLIST_FILE: Tunnel/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Tunnel/RodiniaTunnel.entitlements
+        SKIP_INSTALL: YES
+        # The Go runtime is linked statically from the xcframework.
+        OTHER_LDFLAGS: $(inherited) -lresolv
+schemes:
+  Rodinia:
+    build:
+      targets:
+        Rodinia: all
+    run:
+      config: Debug
+    test:
+      config: Debug
