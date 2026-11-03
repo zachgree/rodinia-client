@@ -77,12 +77,18 @@ EXT="$APP/Contents/Library/SystemExtensions/$TUNNEL_ID.systemextension"
 # the identifiers the profile is checked against.
 entitlements() {
   local source="$1" bundle="$2" out="$3"
-  sed 's/\$(NE_TUNNEL_PROVIDER)/packet-tunnel-provider-systemextension/' "$source" > "$out"
+  # NEMachServiceName in the tunnel's Info.plist must start with this App Group.
+  sed -e 's/\$(NE_TUNNEL_PROVIDER)/packet-tunnel-provider-systemextension/' \
+      -e "s/\$(DEVELOPMENT_TEAM).\$(APP_BUNDLE_ID)/$TEAM.$APP_ID/" "$source" > "$out"
   /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string $TEAM.$bundle" "$out"
   /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string $TEAM" "$out"
 }
 entitlements Tunnel/RodiniaTunnel.entitlements "$TUNNEL_ID" "$WORK/tunnel.entitlements"
 entitlements App/Rodinia.entitlements "$APP_ID" "$WORK/app.entitlements"
+
+# Fail early rather than ship an extension macOS will reject at activation.
+MACH=$(/usr/libexec/PlistBuddy -c 'Print :NetworkExtension:NEMachServiceName' "$EXT/Contents/Info.plist")
+[[ "$MACH" == "$TEAM.$APP_ID".* ]] || { echo "!! NEMachServiceName '$MACH' must start with the App Group $TEAM.$APP_ID" >&2; exit 1; }
 
 echo "==> signing with $IDENTITY"
 cp "$TUNNEL_PROFILE" "$EXT/Contents/embedded.provisionprofile"

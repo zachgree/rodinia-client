@@ -29,7 +29,7 @@
 	<key>NetworkExtension</key>
 	<dict>
 		<key>NEMachServiceName</key>
-		<string>$(TeamIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+		<string>$(DEVELOPMENT_TEAM).$(APP_BUNDLE_ID).tunnel</string>
 		<key>NEProviderClasses</key>
 		<dict>
 			<key>com.apple.networkextension.packet-tunnel</key>
