@@ -33,9 +33,13 @@ func Start(configJSON string, tunFd int) error {
 		instance = nil
 	}
 
-	// A packet tunnel extension is killed above ~50 MB. Keep the Go heap well below it.
-	debug.SetGCPercent(20)
-	debug.SetMemoryLimit(32 << 20)
+	// Xray-core plus its gVisor netstack keeps far more than 32 MB of live heap. A
+	// memory limit below that leaves the collector permanently over budget: it can
+	// never reach its goal, so it re-arms immediately and runs back to back on every
+	// processor, pinning cores for as long as the tunnel is up. The old 32 MB ceiling
+	// did not hold RSS down either, so it bought nothing. Let the collector pace
+	// itself normally instead.
+	debug.SetGCPercent(100)
 
 	if err := os.Setenv("xray.tun.fd", strconv.Itoa(tunFd)); err != nil {
 		return err
